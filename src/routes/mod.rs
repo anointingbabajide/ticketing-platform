@@ -1,0 +1,19 @@
+pub mod messages;
+pub mod tickets;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
+
+use crate::AppState;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/tickets", post(tickets::create_ticket).get(tickets::list_tickets))
+        .route(
+            "/tickets/{id}",
+            get(tickets::get_ticket).patch(tickets::update_ticket),
+        )
+        .route("/tickets/{id}/messages", post(messages::create_message))
+}
