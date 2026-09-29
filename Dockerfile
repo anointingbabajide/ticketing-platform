@@ -1,9 +1,8 @@
-FROM rust:1.90-slim AS builder
+FROM rust:1.90-slim-bookworm AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# cache dependencies separately from your own code
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
