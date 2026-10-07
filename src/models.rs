@@ -16,17 +16,20 @@ pub struct Ticket {
     pub subject: String,
     pub status: String,
     pub priority: String,
-    pub customer_id: Uuid,
+    pub customer_id: Option<Uuid>,
+    pub customer_email: Option<String>,
+    pub source: String,
     pub assignee_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
-
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct Message {
     pub id: Uuid,
     pub ticket_id: Uuid,
-    pub author_id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub author_email: Option<String>,
+    pub email_message_id: Option<String>,
     pub body: String,
     pub is_internal: bool,
     pub created_at: DateTime<Utc>,

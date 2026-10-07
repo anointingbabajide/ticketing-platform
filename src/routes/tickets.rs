@@ -91,9 +91,9 @@ pub async fn get_ticket(
         .ok_or(AppError::NotFound)?;
 
     let is_agent = user.role == "agent";
-    if !is_agent && ticket.customer_id != user.id {
-        return Err(AppError::Forbidden);
-    }
+if !is_agent && ticket.customer_id != Some(user.id) {
+    return Err(AppError::Forbidden);
+}
 
     let messages = sqlx::query_as::<_, Message>(
         "select * from messages where ticket_id = $1 and ($2 or not is_internal) order by created_at asc",

@@ -1,3 +1,4 @@
+pub mod inbound;
 pub mod messages;
 pub mod tickets;
 
@@ -16,4 +17,5 @@ pub fn router() -> Router<AppState> {
             get(tickets::get_ticket).patch(tickets::update_ticket),
         )
         .route("/tickets/{id}/messages", post(messages::create_message))
+        .route("/webhooks/inbound-email", post(inbound::inbound_email))
 }
