@@ -94,7 +94,9 @@ async fn process(state: &AppState, body: &[u8]) -> anyhow::Result<()> {
         .subject
         .clone()
         .unwrap_or_else(|| "(no subject)".into());
-
+    if is_notification(&subject) {
+        return Ok(());
+    }
     // dedupe on the email Message-ID
     let seen: bool =
         sqlx::query_scalar("select exists(select 1 from messages where email_message_id = $1)")
@@ -229,13 +231,25 @@ fn tag_in(subject: &str) -> Option<String> {
 }
 
 fn strip_quoted(text: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
     let mut out = Vec::new();
-    for line in text.lines() {
-        let l = line.trim_start();
-        if l.starts_with('>') || (l.starts_with("On ") && l.trim_end().ends_with("wrote:")) {
+    for (i, line) in lines.iter().enumerate() {
+        let l = line.trim();
+        let next = lines.get(i + 1).map(|n| n.trim()).unwrap_or("");
+        let attribution =
+            l.starts_with("On ") && (l.ends_with("wrote:") || next.ends_with("wrote:"));
+        if l.starts_with('>') || attribution || l.starts_with("-----Original Message") {
             break;
         }
-        out.push(line);
+        out.push(*line);
     }
     out.join("\n")
+}
+
+fn is_notification(subject: &str) -> bool {
+    let mut s = subject.trim().to_lowercase();
+    while let Some(rest) = s.strip_prefix("re:") {
+        s = rest.trim_start().to_string();
+    }
+    s.starts_with("new ticket:") || s.starts_with("new reply:")
 }
