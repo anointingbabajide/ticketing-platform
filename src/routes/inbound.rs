@@ -235,9 +235,10 @@ fn strip_quoted(text: &str) -> String {
     let mut out = Vec::new();
     for (i, line) in lines.iter().enumerate() {
         let l = line.trim();
-        let next = lines.get(i + 1).map(|n| n.trim()).unwrap_or("");
-        let attribution =
-            l.starts_with("On ") && (l.ends_with("wrote:") || next.ends_with("wrote:"));
+        let attribution = l.starts_with("On ")
+            && lines[i..lines.len().min(i + 3)]
+                .iter()
+                .any(|x| x.trim().ends_with("wrote:"));
         if l.starts_with('>') || attribution || l.starts_with("-----Original Message") {
             break;
         }
