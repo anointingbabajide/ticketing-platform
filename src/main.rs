@@ -6,11 +6,7 @@ mod jwks;
 mod models;
 mod routes;
 
-use axum::{
-    extract::FromRef,
-    routing::get,
-    Json, Router,
-};
+use axum::{Json, Router, extract::FromRef, routing::get};
 use jsonwebtoken::jwk::Jwk;
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;

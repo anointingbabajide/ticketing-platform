@@ -2,11 +2,11 @@ use axum::{
     extract::{FromRef, FromRequestParts},
     http::request::Parts,
 };
-use jsonwebtoken::{decode, decode_header, jwk::Jwk, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::Jwk};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{error::AppError, models::Profile, AppState};
+use crate::{AppState, error::AppError, models::Profile};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -33,7 +33,9 @@ where
             .and_then(|v| v.to_str().ok())
             .ok_or(AppError::Unauthorized)?;
 
-        let token = header.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+        let token = header
+            .strip_prefix("Bearer ")
+            .ok_or(AppError::Unauthorized)?;
 
         let jwt_header = decode_header(token).map_err(|e| {
             tracing::error!(error = ?e, "jwt header decode failed");

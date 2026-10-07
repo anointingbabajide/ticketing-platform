@@ -2,7 +2,13 @@ use serde_json::json;
 
 use crate::config::Config;
 
-fn new_ticket_email_html(app_url: &str, ticket_id: uuid::Uuid, subject: &str, body: &str) -> String {
+fn new_ticket_email_html(
+    app_url: &str,
+    ticket_id: uuid::Uuid,
+    label: &str,
+    subject: &str,
+    body: &str,
+) -> String {
     format!(
         r#"<div style="background-color:#F4F6F5; padding:40px 20px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; margin:0 auto;">
@@ -20,7 +26,7 @@ fn new_ticket_email_html(app_url: &str, ticket_id: uuid::Uuid, subject: &str, bo
         </table>
 
         <p style="margin:0 0 4px; font-size:12px; font-weight:700; color:#3C7A69; text-transform:uppercase; letter-spacing:.04em;">
-          New ticket
+          {label}
         </p>
         <h1 style="margin:0 0 16px; font-size:19px; font-weight:800; color:#1A2420; letter-spacing:-0.2px; line-height:1.3;">
           {subject}
@@ -112,10 +118,11 @@ fn escape_html(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-pub fn send_new_ticket_email(
+fn notify_agents(
     config: &Config,
     agent_emails: Vec<String>,
     ticket_id: uuid::Uuid,
+    label: &'static str,
     subject: &str,
     body: &str,
 ) {
@@ -131,17 +138,37 @@ pub fn send_new_ticket_email(
         let html = new_ticket_email_html(
             &config.app_url,
             ticket_id,
+            label,
             &escape_html(&subject),
             &escape_html(&body),
         );
         for to in agent_emails {
-            if let Err(e) = send(&config, &to, &format!("New ticket: {subject}"), &html, None).await {
-                tracing::error!(error = ?e, "failed to send new-ticket email");
+            if let Err(e) = send(&config, &to, &format!("{label}: {subject}"), &html, None).await {
+                tracing::error!(error = ?e, "failed to send agent notification");
             }
         }
     });
 }
 
+pub fn send_new_ticket_email(
+    config: &Config,
+    agent_emails: Vec<String>,
+    ticket_id: uuid::Uuid,
+    subject: &str,
+    body: &str,
+) {
+    notify_agents(config, agent_emails, ticket_id, "New ticket", subject, body);
+}
+
+pub fn send_customer_reply_email(
+    config: &Config,
+    agent_emails: Vec<String>,
+    ticket_id: uuid::Uuid,
+    subject: &str,
+    body: &str,
+) {
+    notify_agents(config, agent_emails, ticket_id, "New reply", subject, body);
+}
 pub fn send_reply_email(
     config: &Config,
     to: &str,
@@ -158,9 +185,16 @@ pub fn send_reply_email(
     let body = body.to_string();
 
     tokio::spawn(async move {
-        let clean = subject.trim_start_matches("Re: ").trim_start_matches("RE: ");
+        let clean = subject
+            .trim_start_matches("Re: ")
+            .trim_start_matches("RE: ");
         let short = ticket_id.simple().to_string()[..8].to_string();
-        let html = reply_email_html(&config.app_url, &escape_html(clean), &escape_html(&body), portal);
+        let html = reply_email_html(
+            &config.app_url,
+            &escape_html(clean),
+            &escape_html(&body),
+            portal,
+        );
 
         let mut headers = json!({ "Message-ID": message_id });
         if let Some(prev) = &in_reply_to {
@@ -202,7 +236,11 @@ async fn send(
         .await?;
 
     if !res.status().is_success() {
-        anyhow::bail!("resend returned {}: {}", res.status(), res.text().await.unwrap_or_default());
+        anyhow::bail!(
+            "resend returned {}: {}",
+            res.status(),
+            res.text().await.unwrap_or_default()
+        );
     }
 
     Ok(())

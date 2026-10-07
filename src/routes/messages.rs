@@ -1,15 +1,15 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     auth::AuthUser,
     email,
     error::AppError,
     models::{CreateMessage, Message, Ticket},
-    AppState,
 };
 
 pub async fn create_message(
@@ -58,13 +58,37 @@ pub async fn create_message(
     .bind(&email_message_id)
     .fetch_one(&state.pool)
     .await?;
+    if !is_agent {
+        let agent_emails: Vec<String> = match ticket.assignee_id {
+            Some(aid) => {
+                sqlx::query_scalar("select email from profiles where id = $1")
+                    .bind(aid)
+                    .fetch_all(&state.pool)
+                    .await?
+            }
+            None => {
+                sqlx::query_scalar("select email from profiles where role = 'agent'")
+                    .fetch_all(&state.pool)
+                    .await?
+            }
+        };
+        email::send_customer_reply_email(
+            &state.config,
+            agent_emails,
+            ticket.id,
+            &ticket.subject,
+            &payload.body,
+        );
+    }
 
     if will_email {
         let to = match ticket.customer_id {
-            Some(cid) => sqlx::query_scalar::<_, String>("select email from profiles where id = $1")
-                .bind(cid)
-                .fetch_optional(&state.pool)
-                .await?,
+            Some(cid) => {
+                sqlx::query_scalar::<_, String>("select email from profiles where id = $1")
+                    .bind(cid)
+                    .fetch_optional(&state.pool)
+                    .await?
+            }
             None => ticket.customer_email.clone(),
         };
 

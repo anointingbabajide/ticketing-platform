@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{email, models::Ticket, AppState};
+use crate::{AppState, email, models::Ticket};
 
 #[derive(Deserialize)]
 struct Event {
@@ -59,7 +59,10 @@ async fn process(state: &AppState, body: &[u8]) -> anyhow::Result<()> {
     }
 
     let mail: Received = reqwest::Client::new()
-        .get(format!("https://api.resend.com/emails/receiving/{}", event.data.email_id))
+        .get(format!(
+            "https://api.resend.com/emails/receiving/{}",
+            event.data.email_id
+        ))
         .bearer_auth(&state.config.resend_api_key)
         .send()
         .await?
@@ -87,15 +90,17 @@ async fn process(state: &AppState, body: &[u8]) -> anyhow::Result<()> {
     if text.is_empty() {
         return Ok(());
     }
-    let subject = mail.subject.clone().unwrap_or_else(|| "(no subject)".into());
+    let subject = mail
+        .subject
+        .clone()
+        .unwrap_or_else(|| "(no subject)".into());
 
     // dedupe on the email Message-ID
-    let seen: bool = sqlx::query_scalar(
-        "select exists(select 1 from messages where email_message_id = $1)",
-    )
-    .bind(&mail.message_id)
-    .fetch_one(&state.pool)
-    .await?;
+    let seen: bool =
+        sqlx::query_scalar("select exists(select 1 from messages where email_message_id = $1)")
+            .bind(&mail.message_id)
+            .fetch_one(&state.pool)
+            .await?;
     if seen {
         return Ok(());
     }
@@ -147,10 +152,25 @@ async fn process(state: &AppState, body: &[u8]) -> anyhow::Result<()> {
             .execute(&state.pool)
             .await?;
 
-           sqlx::query("update tickets set status = 'open' where id = $1 and status = 'resolved'")
+            sqlx::query("update tickets set status = 'open' where id = $1 and status = 'resolved'")
                 .bind(t.id)
                 .execute(&state.pool)
                 .await?;
+
+            let agent_emails: Vec<String> = match t.assignee_id {
+                Some(aid) => {
+                    sqlx::query_scalar("select email from profiles where id = $1")
+                        .bind(aid)
+                        .fetch_all(&state.pool)
+                        .await?
+                }
+                None => {
+                    sqlx::query_scalar("select email from profiles where role = 'agent'")
+                        .fetch_all(&state.pool)
+                        .await?
+                }
+            };
+            email::send_customer_reply_email(&state.config, agent_emails, t.id, &t.subject, text);
         }
         None => {
             // link to an existing portal account if the email matches one

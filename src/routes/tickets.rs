@@ -1,15 +1,15 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     auth::{AgentUser, AuthUser},
     email,
     error::AppError,
     models::{CreateTicket, Message, Ticket, TicketFilters, TicketWithThread, UpdateTicket},
-    AppState,
 };
 
 pub async fn create_ticket(
@@ -40,15 +40,19 @@ pub async fn create_ticket(
 
     tx.commit().await?;
 
-    let agent_emails: Vec<String> = sqlx::query_scalar(
-    "select email from profiles where role = 'agent'",
-)
-.fetch_all(&state.pool)
-.await?;
+    let agent_emails: Vec<String> =
+        sqlx::query_scalar("select email from profiles where role = 'agent'")
+            .fetch_all(&state.pool)
+            .await?;
 
-email::send_new_ticket_email(&state.config, agent_emails, ticket.id, &ticket.subject, &payload.body);
+    email::send_new_ticket_email(
+        &state.config,
+        agent_emails,
+        ticket.id,
+        &ticket.subject,
+        &payload.body,
+    );
     Ok(Json(ticket))
-    
 }
 
 pub async fn list_tickets(
@@ -91,9 +95,9 @@ pub async fn get_ticket(
         .ok_or(AppError::NotFound)?;
 
     let is_agent = user.role == "agent";
-if !is_agent && ticket.customer_id != Some(user.id) {
-    return Err(AppError::Forbidden);
-}
+    if !is_agent && ticket.customer_id != Some(user.id) {
+        return Err(AppError::Forbidden);
+    }
 
     let messages = sqlx::query_as::<_, Message>(
         "select * from messages where ticket_id = $1 and ($2 or not is_internal) order by created_at asc",

@@ -7,7 +7,7 @@ pub struct Config {
     pub supabase_url: String,
     pub supabase_jwt_secret: String,
     pub resend_api_key: String,
-        pub resend_webhook_secret: String,
+    pub resend_webhook_secret: String,
     pub from_email: String,
     pub app_url: String,
     pub port: u16,
@@ -28,8 +28,8 @@ impl Config {
     pub fn from_env() -> Self {
         dotenvy::dotenv().ok();
 
-        let raw = fs::read_to_string("config.toml")
-            .unwrap_or_else(|_| panic!("missing config.toml"));
+        let raw =
+            fs::read_to_string("config.toml").unwrap_or_else(|_| panic!("missing config.toml"));
         let file: FileConfig =
             toml::from_str(&raw).unwrap_or_else(|e| panic!("invalid config.toml: {e}"));
 
@@ -41,7 +41,10 @@ impl Config {
             resend_webhook_secret: must("RESEND_WEBHOOK_SECRET"),
             from_email: file.from_email,
             app_url: env::var("APP_URL").unwrap_or_else(|_| "http://localhost:3000".to_string()),
-            port: env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(file.port),
+            port: env::var("PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(file.port),
         }
     }
 }
